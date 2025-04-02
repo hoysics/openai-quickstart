@@ -33,13 +33,39 @@ class TranslationRequest(BaseModel):
     api_key: str
     model_name: str = "gpt-3.5-turbo"
     file_format: str = "markdown"
+    translation_style: str = "default"
+
+# 预定义的翻译风格
+TRANSLATION_STYLES = {
+    "default": "标准翻译",
+    "novel": "小说风格",
+    "news": "新闻稿风格",
+    "technical": "技术文档风格",
+    "literary": "文学风格",
+    "business": "商务风格",
+    "academic": "学术风格",
+    "casual": "口语风格"
+}
+
+# 风格提示词模板
+STYLE_PROMPTS = {
+    "default": "请将以下文本翻译成中文，保持原文的意思和语气。",
+    "novel": "请将以下文本翻译成中文，采用小说写作风格，注重情节流畅性和人物刻画。",
+    "news": "请将以下文本翻译成中文，采用新闻写作风格，保持客观、准确、简洁。",
+    "technical": "请将以下文本翻译成中文，采用技术文档风格，保持专业性和准确性。",
+    "literary": "请将以下文本翻译成中文，采用文学写作风格，注重文采和意境。",
+    "business": "请将以下文本翻译成中文，采用商务写作风格，保持专业、正式、得体。",
+    "academic": "请将以下文本翻译成中文，采用学术写作风格，保持严谨性和专业性。",
+    "casual": "请将以下文本翻译成中文，采用口语化风格，保持自然、轻松、易懂。"
+}
 
 @app.post("/translate")
 async def translate_pdf_api(
     file: UploadFile = File(...),
     api_key: str = None,
     model_name: str = "gpt-3.5-turbo",
-    file_format: str = "markdown"
+    file_format: str = "markdown",
+    translation_style: str = "default"
 ):
     """
     API endpoint for PDF translation
@@ -55,8 +81,12 @@ async def translate_pdf_api(
         model = OpenAIModel(model=model_name, api_key=api_key)
         translator = PDFTranslator(model)
         
-        # Perform translation
-        translator.translate_pdf(temp_path, file_format)
+        # Perform translation with style
+        translator.translate_pdf(
+            temp_path, 
+            file_format,
+            translation_style=translation_style
+        )
         
         # Clean up temporary file
         os.remove(temp_path)
@@ -67,14 +97,18 @@ async def translate_pdf_api(
             os.remove(temp_path)
         raise HTTPException(status_code=500, detail=str(e))
 
-def translate_pdf_gui(pdf_file, api_key, model_name="gpt-3.5-turbo", file_format="markdown"):
+def translate_pdf_gui(pdf_file, api_key, model_name="gpt-3.5-turbo", file_format="markdown", translation_style="default"):
     """
     GUI wrapper function for PDF translation
     """
     try:
         model = OpenAIModel(model=model_name, api_key=api_key)
         translator = PDFTranslator(model)
-        translator.translate_pdf(pdf_file.name, file_format)
+        translator.translate_pdf(
+            pdf_file.name, 
+            file_format,
+            translation_style=translation_style
+        )
         return "Translation completed successfully!"
     except Exception as e:
         return f"Error during translation: {str(e)}"
@@ -85,7 +119,7 @@ def create_gui():
     """
     with gr.Blocks(title="PDF Translator") as interface:
         gr.Markdown("# PDF Translator")
-        gr.Markdown("Translate PDF documents using OpenAI's models")
+        gr.Markdown("Translate PDF documents using OpenAI's models with different styles")
         
         with gr.Row():
             with gr.Column():
@@ -105,14 +139,23 @@ def create_gui():
                     value="markdown",
                     label="Output Format"
                 )
+                translation_style = gr.Dropdown(
+                    choices=list(TRANSLATION_STYLES.values()),
+                    value=TRANSLATION_STYLES["default"],
+                    label="Translation Style"
+                )
                 translate_btn = gr.Button("Translate PDF")
             
             with gr.Column():
                 output = gr.Textbox(label="Status", lines=3)
+                style_description = gr.Markdown(
+                    "### Style Descriptions:\n" + 
+                    "\n".join([f"- {style_name}: {style_desc}" for style_name, style_desc in TRANSLATION_STYLES.items()])
+                )
         
         translate_btn.click(
             fn=translate_pdf_gui,
-            inputs=[pdf_file, api_key, model_name, file_format],
+            inputs=[pdf_file, api_key, model_name, file_format, translation_style],
             outputs=output
         )
     
